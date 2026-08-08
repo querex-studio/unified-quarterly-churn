@@ -1,0 +1,1903 @@
+<title>Sahseh Churn — Data Model</title>
+
+<style>
+  /* ---------------------------------------------------------------------
+     Palette encodes the pipeline, it does not decorate it.
+     The five processing layers use a sequential ramp (unrefined slate ->
+     refined cobalt -> brass output); quality is a categorical off-ramp
+     colour because it is cross-cutting, not a stage.
+     --------------------------------------------------------------------- */
+  :root {
+    --ground:      #FAFAFC;
+    --surface:     #F1F2F6;
+    --surface-2:   #E7E9F0;
+    --rule:        #D5D8E2;
+    --rule-soft:   #E4E6EE;
+    --ink:         #14171F;
+    --ink-2:       #3D4351;
+    --ink-3:       #6C7386;
+
+    --l-raw:   #656E85;
+    --l-stg:   #3F6AA6;
+    --l-int:   #2A4FC4;
+    --l-fct:   #4A34AE;
+    --l-mart:  #98661F;
+    --l-dq:    #A2314A;
+
+    --accent:      #2A4FC4;
+    --accent-soft: #E5E9FA;
+    --good:        #226B4F;
+    --warn:        #8A5A12;
+
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", "Menlo", "Consolas", monospace;
+    --serif: "Charter", "Bitstream Charter", "Iowan Old Style", "Cambria", "Georgia", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", "Roboto", sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:    #0D0F15;
+      --surface:   #151822;
+      --surface-2: #1D212D;
+      --rule:      #2B303E;
+      --rule-soft: #21262F;
+      --ink:       #E6E9F1;
+      --ink-2:     #B4BAC9;
+      --ink-3:     #838B9E;
+
+      --l-raw:  #949CB2;
+      --l-stg:  #7BA2DE;
+      --l-int:  #8098F8;
+      --l-fct:  #A28FF5;
+      --l-mart: #D9A75F;
+      --l-dq:   #E4809A;
+
+      --accent:      #8098F8;
+      --accent-soft: #1B2140;
+      --good:        #5FBF95;
+      --warn:        #D2A055;
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground:#FAFAFC; --surface:#F1F2F6; --surface-2:#E7E9F0; --rule:#D5D8E2;
+    --rule-soft:#E4E6EE; --ink:#14171F; --ink-2:#3D4351; --ink-3:#6C7386;
+    --l-raw:#656E85; --l-stg:#3F6AA6; --l-int:#2A4FC4; --l-fct:#4A34AE;
+    --l-mart:#98661F; --l-dq:#A2314A;
+    --accent:#2A4FC4; --accent-soft:#E5E9FA; --good:#226B4F; --warn:#8A5A12;
+  }
+  :root[data-theme="dark"] {
+    --ground:#0D0F15; --surface:#151822; --surface-2:#1D212D; --rule:#2B303E;
+    --rule-soft:#21262F; --ink:#E6E9F1; --ink-2:#B4BAC9; --ink-3:#838B9E;
+    --l-raw:#949CB2; --l-stg:#7BA2DE; --l-int:#8098F8; --l-fct:#A28FF5;
+    --l-mart:#D9A75F; --l-dq:#E4809A;
+    --accent:#8098F8; --accent-soft:#1B2140; --good:#5FBF95; --warn:#D2A055;
+  }
+
+  .page {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 16px;
+    line-height: 1.6;
+    padding: 0 0 6rem;
+  }
+
+  .shell {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 clamp(1rem, 3vw, 2.5rem);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  @media (min-width: 1080px) {
+    .shell { grid-template-columns: 208px minmax(0, 1fr); gap: 3rem; align-items: start; }
+  }
+
+  /* ---------------------------- masthead ---------------------------- */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: clamp(2.5rem, 6vw, 4.5rem) 0 1.75rem;
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: var(--sans);
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 1.25rem;
+  }
+  .masthead h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.85rem, 5vw, 3.1rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    text-wrap: balance;
+    margin: 0 0 1.25rem;
+  }
+  .thesis {
+    max-width: 62ch;
+    font-size: 1.0625rem;
+    color: var(--ink-2);
+  }
+  .thesis strong { color: var(--ink); font-weight: 600; }
+
+  .ledger {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 2.25rem;
+  }
+  .ledger div { background: var(--ground); padding: 0.85rem 0.9rem; }
+  .ledger dt {
+    font-family: var(--sans);
+    font-size: 0.625rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 0.35rem;
+  }
+  .ledger dd {
+    font-family: var(--mono);
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+  }
+
+  /* ------------------------------ nav ------------------------------- */
+  .rail { display: none; }
+  @media (min-width: 1080px) {
+    .rail {
+      display: block;
+      position: sticky;
+      top: 1.75rem;
+      font-family: var(--sans);
+      font-size: 0.8125rem;
+    }
+    .rail ol { list-style: none; margin: 0; padding: 0; }
+    .rail li { border-top: 1px solid var(--rule-soft); }
+    .rail li:last-child { border-bottom: 1px solid var(--rule-soft); }
+    .rail a {
+      display: flex; gap: 0.6rem;
+      padding: 0.5rem 0;
+      color: var(--ink-2);
+      text-decoration: none;
+    }
+    .rail a:hover { color: var(--accent); }
+    .rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .rail .n {
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      color: var(--ink-3);
+      padding-top: 0.2em;
+    }
+  }
+
+  /* --------------------------- sections ----------------------------- */
+  section { margin-bottom: 4.5rem; scroll-margin-top: 1.5rem; }
+  h2 {
+    font-family: var(--mono);
+    font-size: clamp(1.2rem, 2.6vw, 1.6rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin: 0 0 0.35rem;
+    padding-top: 1rem;
+    border-top: 2px solid var(--ink);
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  h2 .n {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+  }
+  .lede { max-width: 68ch; color: var(--ink-2); margin: 0 0 2rem; }
+  h3 {
+    font-family: var(--sans);
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 600;
+    margin: 2.5rem 0 1rem;
+  }
+  p { max-width: 68ch; }
+
+  code, .id {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    background: var(--surface);
+    padding: 0.08em 0.34em;
+    border-radius: 2px;
+    word-break: break-word;
+  }
+
+  /* --------------------------- diagrams ----------------------------- */
+  .figure {
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    padding: 1.5rem 1rem;
+    margin: 1.5rem 0 0.75rem;
+    overflow-x: auto;
+  }
+  .figure svg { display: block; margin: 0 auto; min-width: 640px; }
+  .caption {
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    color: var(--ink-3);
+    max-width: 74ch;
+    margin: 0 0 2rem;
+  }
+  .dgm-box { fill: var(--ground); stroke: var(--rule); stroke-width: 1; }
+  .dgm-title { font-family: var(--mono); font-size: 12.5px; font-weight: 700; fill: var(--ink); }
+  .dgm-sub { font-family: var(--sans); font-size: 10px; fill: var(--ink-3); }
+  .dgm-key { font-family: var(--mono); font-size: 10px; fill: var(--ink-2); }
+  .dgm-band { font-family: var(--sans); font-size: 9.5px; letter-spacing: 0.14em; }
+  .dgm-line { stroke: var(--ink-3); stroke-width: 1.25; fill: none; }
+  .dgm-card { font-family: var(--mono); font-size: 11px; fill: var(--ink); }
+  .dgm-note { font-family: var(--sans); font-size: 9.5px; fill: var(--ink-3); font-style: italic; }
+
+  /* ---------------------------- entities ---------------------------- */
+  .entity {
+    border-top: 3px solid var(--layer, var(--rule));
+    padding-top: 1.15rem;
+    margin-bottom: 3rem;
+  }
+  .entity[data-layer="raw"]  { --layer: var(--l-raw); }
+  .entity[data-layer="stg"]  { --layer: var(--l-stg); }
+  .entity[data-layer="int"]  { --layer: var(--l-int); }
+  .entity[data-layer="fct"]  { --layer: var(--l-fct); }
+  .entity[data-layer="mart"] { --layer: var(--l-mart); }
+  .entity[data-layer="dq"]   { --layer: var(--l-dq); }
+
+  .entity-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.9rem;
+    margin-bottom: 0.9rem;
+  }
+  .entity-name {
+    font-family: var(--mono);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--layer);
+  }
+  .chip {
+    font-family: var(--sans);
+    font-size: 0.625rem;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-3);
+    border: 1px solid var(--rule);
+    padding: 0.15em 0.5em;
+  }
+  .chip.solid { color: var(--layer); border-color: var(--layer); }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.85rem 1.5rem;
+    padding: 0.9rem 0 1.1rem;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 1.1rem;
+  }
+  .facts dt {
+    font-family: var(--sans);
+    font-size: 0.625rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 0.2rem;
+  }
+  .facts dd {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--ink);
+    margin: 0;
+    word-break: break-word;
+  }
+  .why {
+    font-size: 0.97rem;
+    color: var(--ink-2);
+    max-width: 70ch;
+    margin: 0 0 1.2rem;
+  }
+  .why b { color: var(--ink); font-weight: 600; }
+
+  /* ----------------------------- tables ----------------------------- */
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+  thead th {
+    font-family: var(--sans);
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: left;
+    color: var(--ink-3);
+    font-weight: 600;
+    padding: 0.55rem 0.75rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+    color: var(--ink-2);
+    font-family: var(--serif);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.c-name { font-family: var(--mono); font-size: 0.78rem; color: var(--ink); white-space: nowrap; font-weight: 600; }
+  td.c-type { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-3); white-space: nowrap; }
+  td.c-num  { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); white-space: nowrap; }
+  .k { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.04em; font-weight: 700; }
+  .k-pk { color: var(--accent); }
+  .k-fk { color: var(--l-mart); }
+  .k-flag { color: var(--good); }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 1rem 1.15rem;
+    margin: 1.75rem 0;
+    max-width: 72ch;
+  }
+  .callout p { margin: 0; font-size: 0.95rem; }
+  .callout p + p { margin-top: 0.7rem; }
+  .callout .tag {
+    font-family: var(--sans);
+    font-size: 0.625rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+
+  .decision { border-top: 1px solid var(--rule); padding-top: 1.1rem; margin-bottom: 2.25rem; }
+  .decision h4 {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0 0 0.6rem;
+  }
+  .decision .alt {
+    font-size: 0.9rem;
+    color: var(--ink-3);
+    border-left: 2px solid var(--rule);
+    padding-left: 0.9rem;
+    margin-top: 0.8rem;
+    max-width: 68ch;
+  }
+  .decision .alt b { color: var(--ink-2); font-weight: 600; font-style: normal; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; font-family: var(--sans); font-size: 0.72rem; color: var(--ink-2); margin: 1rem 0 0; }
+  .legend span { display: flex; align-items: center; gap: 0.4rem; }
+  .legend i { width: 10px; height: 10px; display: block; }
+
+  a { color: var(--accent); }
+  hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 3rem 0; }
+</style>
+
+<div class="page">
+
+  <div class="shell">
+    <div style="grid-column: 1 / -1;">
+      <header class="masthead">
+        <p class="eyebrow">Sahseh · coupon &amp; cashback · BigQuery warehouse</p>
+        <h1>Unified quarterly<br>churn — data model</h1>
+        <p class="thesis">
+          Every table in this model exists to protect one sentence: <strong>a person who uses coupons,
+          cashback, or both is counted once, in the quarter their behaviour happened.</strong>
+          The design problem is not the churn arithmetic — it is that the same human arrives through
+          two systems under two identities, on two different date columns, with a payment workflow
+          that decides weeks later whether one of those arrivals ever happened.
+        </p>
+        <dl class="ledger">
+          <div><dt>People</dt><dd>66</dd></div>
+          <div><dt>Source identities</dt><dd>132</dd></div>
+          <div><dt>Activity events</dt><dd>185</dd></div>
+          <div><dt>Fact rows</dt><dd>264</dd></div>
+          <div><dt>Objects</dt><dd>27</dd></div>
+          <div><dt>Assertions</dt><dd>21</dd></div>
+        </dl>
+      </header>
+    </div>
+
+    <nav class="rail" aria-label="Contents">
+      <ol>
+        <li><a href="#conceptual"><span class="n">01</span><span>Conceptual model</span></a></li>
+        <li><a href="#grain"><span class="n">02</span><span>Grain contract</span></a></li>
+        <li><a href="#layers"><span class="n">03</span><span>Layers &amp; lineage</span></a></li>
+        <li><a href="#catalog"><span class="n">04</span><span>Entity catalog</span></a></li>
+        <li><a href="#rules"><span class="n">05</span><span>Rule enforcement</span></a></li>
+        <li><a href="#decisions"><span class="n">06</span><span>Design decisions</span></a></li>
+        <li><a href="#cardinality"><span class="n">07</span><span>Cardinality ledger</span></a></li>
+        <li><a href="#production"><span class="n">08</span><span>At production scale</span></a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <!-- =================================================================
+           01 CONCEPTUAL
+           ================================================================= -->
+      <section id="conceptual">
+        <h2><span class="n">01</span> Conceptual model</h2>
+        <p class="lede">
+          Six business concepts, before any table exists. Everything physical downstream is a
+          consequence of how these six relate.
+        </p>
+
+        <div class="figure">
+          <svg viewBox="0 0 900 400" role="img" aria-label="Entity relationship diagram: Person resolves Source Identity, which owns Coupon Events and Cashback Transactions, both assigned to a Quarter.">
+            <!-- PERSON -->
+            <rect class="dgm-box" x="330" y="18" width="240" height="62" style="stroke:var(--l-fct); stroke-width:2"/>
+            <text class="dgm-title" x="346" y="42">Person</text>
+            <text class="dgm-key"   x="346" y="60">PK unified_user_id</text>
+            <text class="dgm-sub"   x="346" y="74">the unit the financial model counts</text>
+
+            <!-- SOURCE IDENTITY -->
+            <rect class="dgm-box" x="330" y="132" width="240" height="62" style="stroke:var(--l-stg); stroke-width:2"/>
+            <text class="dgm-title" x="346" y="156">Source Identity</text>
+            <text class="dgm-key"   x="346" y="174">PK (source_system, source_user_id)</text>
+            <text class="dgm-sub"   x="346" y="188">how one system happens to know them</text>
+
+            <!-- COUPON EVENT -->
+            <rect class="dgm-box" x="40" y="252" width="250" height="76" style="stroke:var(--l-int)"/>
+            <text class="dgm-title" x="56" y="276">Coupon Event</text>
+            <text class="dgm-key"   x="56" y="294">PK coupon_event_id</text>
+            <text class="dgm-key"   x="56" y="309">dated by event_date</text>
+            <text class="dgm-sub"   x="56" y="322">eligible when event_type = coupon_copy</text>
+
+            <!-- CASHBACK TXN -->
+            <rect class="dgm-box" x="610" y="252" width="250" height="76" style="stroke:var(--l-int)"/>
+            <text class="dgm-title" x="626" y="276">Cashback Transaction</text>
+            <text class="dgm-key"   x="626" y="294">PK transaction_id</text>
+            <text class="dgm-key"   x="626" y="309">dated by purchase_date</text>
+            <text class="dgm-sub"   x="626" y="322">eligible by status, decided later</text>
+
+            <!-- AFFILIATE SOURCE -->
+            <rect class="dgm-box" x="610" y="358" width="250" height="30" style="stroke:var(--l-mart)"/>
+            <text class="dgm-card" x="626" y="378">Affiliate Source  ×6</text>
+
+            <!-- QUARTER -->
+            <rect class="dgm-box" x="40" y="358" width="250" height="30" style="stroke:var(--l-mart)"/>
+            <text class="dgm-card" x="56" y="378">Quarter  ×4  (2025Q1–Q4)</text>
+
+            <!-- edges -->
+            <path class="dgm-line" d="M450 80 L450 132"/>
+            <text class="dgm-sub" x="458" y="110">1 : 2  (one per system)</text>
+
+            <path class="dgm-line" d="M390 194 L390 222 L165 222 L165 252"/>
+            <path class="dgm-line" d="M510 194 L510 222 L735 222 L735 252"/>
+            <text class="dgm-sub" x="176" y="242">0 : N</text>
+            <text class="dgm-sub" x="690" y="242">0 : N</text>
+
+            <path class="dgm-line" d="M165 328 L165 358" stroke-dasharray="3 3"/>
+            <path class="dgm-line" d="M735 328 L735 358" stroke-dasharray="3 3"/>
+            <path class="dgm-line" d="M290 373 L610 373" stroke-dasharray="3 3"/>
+            <text class="dgm-note" x="368" y="368">assigned by activity date, never by status date</text>
+          </svg>
+        </div>
+        <p class="caption">
+          Solid edges are identifying relationships resolved by the Identity Map. Dashed edges are
+          assignments computed in SQL, not stored keys. <span class="id">Merchant</span> is carried on
+          both event entities but is deliberately not modelled as a dimension — see decision D5.
+        </p>
+
+        <div class="callout">
+          <span class="tag">Why the Person / Source Identity split is the whole model</span>
+          <p>
+            Across 2025, activity arrives under <b>111 distinct source identities</b> — 53 coupon-side and
+            58 mapped cashback-side. They belong to <b>66 people</b>. <b>44 of those 66</b> were active on
+            both channels at some point in the year, and in every single quarter exactly 4 people are
+            active on both sides at once — the same four, U057–U060, all four quarters.
+          </p>
+          <p>
+            Aggregate on the source id and 2025's active base reads 111 instead of 66 — a 68% overstatement,
+            and a churn rate computed on a base that double-counts its most engaged users. Every layer below
+            resolves identity <em>before</em> anything is counted, which is why the identity map is joined
+            in the intermediate layer and never later.
+          </p>
+        </div>
+
+        <h3>Concept definitions</h3>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Concept</th><th>Definition</th><th>Why it is modelled this way</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="c-name">Person</td>
+                <td>One human being, keyed by <span class="id">unified_user_id</span>. 66 exist.</td>
+                <td>The financial model counts people, not accounts. Making this the fact grain means "counted once" is enforced by the primary key rather than by a <code>DISTINCT</code> someone might forget.</td>
+              </tr>
+              <tr>
+                <td class="c-name">Source Identity</td>
+                <td>A person as one source system knows them: <span class="id">(coupon, C1055)</span>, <span class="id">(cashback, B2055)</span>.</td>
+                <td>Kept as its own concept rather than as two columns on Person, so a third channel (app, referral) is a new row, not a schema migration.</td>
+              </tr>
+              <tr>
+                <td class="c-name">Coupon Event</td>
+                <td>A coupon copy action, dated by <span class="id">event_date</span>.</td>
+                <td>Activity is instantaneous and self-evidencing: once it happens it never changes state. This is why coupons need no maturity handling at all.</td>
+              </tr>
+              <tr>
+                <td class="c-name">Cashback Transaction</td>
+                <td>A purchase, dated by <span class="id">purchase_date</span>, carrying a status that is decided later.</td>
+                <td>Behaviour and its confirmation are separated in time. The model keeps them separate too: <span class="id">purchase_date</span> dates the behaviour, <span class="id">status_updated_date</span> only ever describes the paperwork.</td>
+              </tr>
+              <tr>
+                <td class="c-name">Affiliate Source</td>
+                <td>One of six networks feeding cashback transactions.</td>
+                <td>Not a dimension table — six values with no attributes. Modelled as a degenerate attribute on the transaction, and profiled per source in the quality layer, which is where it actually matters.</td>
+              </tr>
+              <tr>
+                <td class="c-name">Quarter</td>
+                <td>A calendar quarter of 2025, the analysis period.</td>
+                <td>The only conformed dimension. Materialised as a table rather than computed inline, because inactivity needs a row to exist against, and a derived quarter cannot produce one.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           02 GRAIN
+           ================================================================= -->
+      <section id="grain">
+        <h2><span class="n">02</span> The grain contract</h2>
+        <p class="lede">
+          One sentence that every downstream number depends on, and the three properties that make it hold.
+        </p>
+
+        <div class="callout">
+          <span class="tag">Grain</span>
+          <p style="font-family: var(--mono); font-size: 0.95rem; line-height: 1.5;">
+            fct_user_quarter_activity =<br>
+            one row per (unified_user_id, quarter_label) — 66 × 4 = <b>264 rows, always</b>
+          </p>
+        </div>
+
+        <h3>Property 1 — dense, not sparse</h3>
+        <p>
+          The table is built from a <b>spine</b>: every person crossed with every quarter, then left-joined
+          to activity. A person with no activity in Q3 still occupies a Q3 row carrying
+          <span class="id">is_active = FALSE</span>.
+        </p>
+        <p>
+          This is the single most consequential physical choice in the model. Churn is a statement about
+          <em>absence</em>, and absence cannot be aggregated if it is represented by a missing row. With a
+          sparse table every downstream query needs an outer join against a generated calendar and gets it
+          subtly wrong — <code>COUNT(*)</code> silently becomes "quarters with data" instead of "quarters".
+          Densifying once, at the fact layer, means every mart above it is a plain <code>COUNTIF</code>.
+        </p>
+
+        <h3>Property 2 — the definition is a dimension, not a fork</h3>
+        <p>
+          The brief requires two answers: activity counting pending cashback, and activity counting only
+          approved. The fact table stores both flags on the same row
+          (<span class="id">is_active_baseline</span>, <span class="id">is_active_approved_only</span>), and
+          <span class="id">v_user_quarter_active</span> unpivots them into a
+          <span class="id">definition_name</span> column.
+        </p>
+        <p>
+          The alternative — a second pipeline for the sensitivity analysis — is how two numbers drift apart
+          six months later when someone fixes a bug in one copy. Here, every mart computes both definitions
+          in the same query, from the same rows, so they cannot disagree except where the rule genuinely
+          differs. The whole sensitivity analysis reduces to <code>GROUP BY definition_name</code>.
+        </p>
+
+        <h3>Property 3 — the person is the unit, the channel is an attribute</h3>
+        <p>
+          A person active on both coupons and cashback in the same quarter produces one row with
+          <span class="id">activity_mix = 'both'</span>. The channel breakdown survives as attributes
+          (<span class="id">is_active_coupon</span>, <span class="id">is_active_cashback</span>,
+          <span class="id">activity_mix</span>) so channel analysis is still possible — but it is impossible
+          to accidentally count that person twice, because there is no second row to count.
+        </p>
+
+        <h3>Grain of every object</h3>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Object</th><th>Grain</th><th>Rows</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">stg_identity_map</td><td>source_system × source_user_id</td><td class="c-num">132</td></tr>
+              <tr><td class="c-name">stg_coupon_events</td><td>coupon_event_id</td><td class="c-num">87</td></tr>
+              <tr><td class="c-name">stg_cashback_transactions</td><td>transaction_id</td><td class="c-num">98</td></tr>
+              <tr><td class="c-name">dim_quarter</td><td>quarter</td><td class="c-num">4</td></tr>
+              <tr><td class="c-name">int_unified_activity_events</td><td>channel × source_event_id</td><td class="c-num">185</td></tr>
+              <tr><td class="c-name">fct_user_quarter_activity</td><td>unified_user_id × quarter</td><td class="c-num">264</td></tr>
+              <tr><td class="c-name">v_user_quarter_active</td><td>definition × unified_user_id × quarter</td><td class="c-num">528</td></tr>
+              <tr><td class="c-name">mart_quarter_transitions</td><td>definition × transition</td><td class="c-num">6</td></tr>
+              <tr><td class="c-name">mart_q1_cohort_summary</td><td>definition</td><td class="c-num">2</td></tr>
+              <tr><td class="c-name">mart_cashback_source_profile</td><td>source × quarter</td><td class="c-num">24</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           03 LAYERS
+           ================================================================= -->
+      <section id="layers">
+        <h2><span class="n">03</span> Layers &amp; lineage</h2>
+        <p class="lede">
+          Five processing layers plus a cross-cutting quality layer. Each layer is allowed to do exactly
+          one kind of work, so that when a number is wrong there is only one place it can be wrong.
+        </p>
+
+        <div class="figure">
+          <svg viewBox="0 0 900 690" role="img" aria-label="Lineage diagram from raw landing tables through staging, intermediate, fact and mart layers, with a cross-cutting quality layer.">
+            <!-- band labels -->
+            <text class="dgm-band" x="8" y="40"  fill="var(--l-raw)">L0 · RAW</text>
+            <text class="dgm-band" x="8" y="150" fill="var(--l-stg)">L1 · STAGING</text>
+            <text class="dgm-band" x="8" y="288" fill="var(--l-int)">L2 · UNIFIED</text>
+            <text class="dgm-band" x="8" y="398" fill="var(--l-fct)">L3 · FACT</text>
+            <text class="dgm-band" x="8" y="530" fill="var(--l-mart)">L4 · MARTS</text>
+
+            <!-- L0 -->
+            <rect class="dgm-box" x="100" y="20"  width="215" height="40" style="stroke:var(--l-raw)"/>
+            <text class="dgm-card" x="112" y="38">raw_identity_map</text>
+            <text class="dgm-sub"  x="112" y="52">132 rows · as extracted</text>
+
+            <rect class="dgm-box" x="335" y="20"  width="215" height="40" style="stroke:var(--l-raw)"/>
+            <text class="dgm-card" x="347" y="38">raw_coupon_activity</text>
+            <text class="dgm-sub"  x="347" y="52">88 rows · 1 duplicate id</text>
+
+            <rect class="dgm-box" x="570" y="20"  width="245" height="40" style="stroke:var(--l-raw)"/>
+            <text class="dgm-card" x="582" y="38">raw_cashback_transactions</text>
+            <text class="dgm-sub"  x="582" y="52">99 rows · 6 sources · 1 dup</text>
+
+            <path class="dgm-line" d="M207 60 L207 100"/>
+            <path class="dgm-line" d="M442 60 L442 100"/>
+            <path class="dgm-line" d="M692 60 L692 100"/>
+
+            <!-- L1 -->
+            <rect class="dgm-box" x="100" y="100" width="215" height="46" style="stroke:var(--l-stg)"/>
+            <text class="dgm-card" x="112" y="118">stg_identity_map</text>
+            <text class="dgm-sub"  x="112" y="132">dedupe · ambiguity flag</text>
+
+            <rect class="dgm-box" x="335" y="100" width="215" height="46" style="stroke:var(--l-stg)"/>
+            <text class="dgm-card" x="347" y="118">stg_coupon_events</text>
+            <text class="dgm-sub"  x="347" y="132">87 · eligibility flag</text>
+
+            <rect class="dgm-box" x="570" y="100" width="245" height="46" style="stroke:var(--l-stg)"/>
+            <text class="dgm-card" x="582" y="118">stg_cashback_transactions</text>
+            <text class="dgm-sub"  x="582" y="132">98 · status_class · latency</text>
+
+            <!-- merge into L2 -->
+            <path class="dgm-line" d="M207 146 L207 178 L450 178"/>
+            <path class="dgm-line" d="M442 146 L442 178"/>
+            <path class="dgm-line" d="M692 146 L692 178 L450 178"/>
+            <path class="dgm-line" d="M450 178 L450 210"/>
+
+            <rect class="dgm-box" x="230" y="210" width="440" height="52" style="stroke:var(--l-int); stroke-width:2"/>
+            <text class="dgm-card" x="246" y="230" style="font-weight:700">int_unified_activity_events</text>
+            <text class="dgm-sub"  x="246" y="245">185 events · identity resolved · quarter assigned · 184 in scope</text>
+            <text class="dgm-sub"  x="246" y="257">carries both activity flags; excludes nothing, flags everything</text>
+
+            <!-- dim_quarter -->
+            <rect class="dgm-box" x="700" y="300" width="180" height="40" style="stroke:var(--l-mart)"/>
+            <text class="dgm-card" x="712" y="318">dim_quarter</text>
+            <text class="dgm-sub"  x="712" y="332">4 rows · the spine</text>
+            <path class="dgm-line" d="M700 320 L560 320 L560 348" stroke-dasharray="4 3"/>
+
+            <path class="dgm-line" d="M450 262 L450 348"/>
+            <text class="dgm-note" x="458" y="292">WHERE is_in_scope</text>
+
+            <!-- L3 -->
+            <rect class="dgm-box" x="230" y="348" width="440" height="56" style="stroke:var(--l-fct); stroke-width:2.5"/>
+            <text class="dgm-card" x="246" y="368" style="font-weight:700">fct_user_quarter_activity</text>
+            <text class="dgm-sub"  x="246" y="383">66 people × 4 quarters = 264 rows, dense</text>
+            <text class="dgm-sub"  x="246" y="396">is_active_baseline · is_active_approved_only · activity_mix</text>
+
+            <path class="dgm-line" d="M450 404 L450 428"/>
+            <rect class="dgm-box" x="285" y="428" width="330" height="34" style="stroke:var(--l-fct)"/>
+            <text class="dgm-card" x="301" y="449">v_user_quarter_active</text>
+            <text class="dgm-sub"  x="452" y="449">528 rows · adds definition_name</text>
+
+            <!-- fan out -->
+            <path class="dgm-line" d="M450 462 L450 484"/>
+            <path class="dgm-line" d="M140 484 L790 484"/>
+            <path class="dgm-line" d="M140 484 L140 506"/>
+            <path class="dgm-line" d="M357 484 L357 506"/>
+            <path class="dgm-line" d="M573 484 L573 506"/>
+            <path class="dgm-line" d="M790 484 L790 506"/>
+
+            <rect class="dgm-box" x="45"  y="506" width="190" height="58" style="stroke:var(--l-mart)"/>
+            <text class="dgm-card" x="57" y="524">mart_quarterly_</text>
+            <text class="dgm-card" x="57" y="537">active_base</text>
+            <text class="dgm-sub"  x="57" y="554">8 rows</text>
+
+            <rect class="dgm-box" x="262" y="506" width="190" height="58" style="stroke:var(--l-mart)"/>
+            <text class="dgm-card" x="274" y="524">mart_quarter_</text>
+            <text class="dgm-card" x="274" y="537">transitions</text>
+            <text class="dgm-sub"  x="274" y="554">6 rows · Q1→Q2→Q3→Q4</text>
+
+            <rect class="dgm-box" x="478" y="506" width="190" height="58" style="stroke:var(--l-mart)"/>
+            <text class="dgm-card" x="490" y="524">mart_q1_cohort_</text>
+            <text class="dgm-card" x="490" y="537">users / summary</text>
+            <text class="dgm-sub"  x="490" y="554">132 + 2 rows</text>
+
+            <rect class="dgm-box" x="695" y="506" width="190" height="58" style="stroke:var(--l-mart)"/>
+            <text class="dgm-card" x="707" y="524">mart_pending_</text>
+            <text class="dgm-card" x="707" y="537">exposure</text>
+            <text class="dgm-sub"  x="707" y="554">4 rows</text>
+
+            <path class="dgm-line" d="M357 564 L357 586 L560 586 L560 606"/>
+            <path class="dgm-line" d="M573 564 L573 586"/>
+            <path class="dgm-line" d="M790 564 L790 586 L560 586"/>
+            <rect class="dgm-box" x="420" y="606" width="290" height="40" style="stroke:var(--l-mart); stroke-width:2"/>
+            <text class="dgm-card" x="436" y="624">mart_report_summary</text>
+            <text class="dgm-sub"  x="436" y="638">104 tidy rows → the workbook</text>
+
+            <!-- quality layer -->
+            <rect class="dgm-box" x="45" y="606" width="330" height="40" style="stroke:var(--l-dq); stroke-dasharray:5 3"/>
+            <text class="dgm-card" x="57" y="624" style="fill:var(--l-dq)">dq_check_results</text>
+            <text class="dgm-sub"  x="57" y="638">21 assertions · reads every layer above</text>
+            <path class="dgm-line" d="M30 40 L30 626 L45 626" stroke="var(--l-dq)" stroke-dasharray="4 3"/>
+          </svg>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--l-raw)"></i>L0 landing</span>
+          <span><i style="background:var(--l-stg)"></i>L1 staging</span>
+          <span><i style="background:var(--l-int)"></i>L2 unified</span>
+          <span><i style="background:var(--l-fct)"></i>L3 fact</span>
+          <span><i style="background:var(--l-mart)"></i>L4 marts &amp; dims</span>
+          <span><i style="background:var(--l-dq)"></i>Quality (cross-cutting)</span>
+        </div>
+        <p class="caption" style="margin-top:1rem;">
+          Marts for source profiling, approval maturity and the as-of restatement read from the staging
+          and fact layers as well; they are omitted from the drawing to keep the spine legible and are
+          fully specified in the catalog below.
+        </p>
+
+        <h3>What each layer is allowed to do</h3>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Layer</th><th>Permitted work</th><th>Forbidden</th><th>Why the boundary</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="c-name" style="color:var(--l-raw)">L0 raw</td>
+                <td>Land bytes as extracted. Type only where unambiguous.</td>
+                <td>Any cleaning, filtering or renaming.</td>
+                <td>Raw is the evidence. If it is cleaned on the way in, a disputed number can never be traced back to what the source actually sent.</td>
+              </tr>
+              <tr>
+                <td class="c-name" style="color:var(--l-stg)">L1 staging</td>
+                <td>Trim, case-normalise, de-duplicate to the business key, classify status vocabulary.</td>
+                <td>Joining across sources; dropping rows.</td>
+                <td>De-duplication must happen before any join, or a duplicate id fans out into duplicated activity. Nothing is dropped so the quality layer can still count what was wrong.</td>
+              </tr>
+              <tr>
+                <td class="c-name" style="color:var(--l-int)">L2 unified</td>
+                <td>Resolve identity, assign quarter, union channels, set activity flags.</td>
+                <td>Aggregating.</td>
+                <td>This is the only layer that knows both channels exist. Keeping it at event grain means the "counted once" rule is applied once, at a single join.</td>
+              </tr>
+              <tr>
+                <td class="c-name" style="color:var(--l-fct)">L3 fact</td>
+                <td>Densify against the spine and aggregate to person × quarter.</td>
+                <td>Business interpretation beyond the two definitions.</td>
+                <td>Every reporting question in the brief is answerable from this one table. If a mart needs to go back to events, the fact table is missing a column.</td>
+              </tr>
+              <tr>
+                <td class="c-name" style="color:var(--l-mart)">L4 marts</td>
+                <td>Window functions, cohort pivots, ratios, presentation shape.</td>
+                <td>Re-deriving activity.</td>
+                <td>Marts must be cheap and obviously correct. A mart that recomputes eligibility is a second definition waiting to drift.</td>
+              </tr>
+              <tr>
+                <td class="c-name" style="color:var(--l-dq)">Quality</td>
+                <td>Count defects; assert reconciliation identities across layers.</td>
+                <td>Fixing anything.</td>
+                <td>A layer that both detects and silently repairs defects will eventually hide one. Detection and remediation stay separate jobs.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           04 CATALOG
+           ================================================================= -->
+      <section id="catalog">
+        <h2><span class="n">04</span> Entity catalog</h2>
+        <p class="lede">
+          Every object, every column, and the reason each one exists. Key notation:
+          <span class="k k-pk">PK</span> primary key · <span class="k k-fk">FK</span> foreign key ·
+          <span class="k k-flag">FLAG</span> derived boolean carried forward for auditability.
+        </p>
+
+        <!-- ---------------- RAW ---------------- -->
+        <h3 style="color:var(--l-raw)">L0 · Raw landing</h3>
+
+        <article class="entity" data-layer="raw">
+          <div class="entity-head">
+            <span class="entity-name">raw_identity_map</span>
+            <span class="chip solid">L0 raw</span><span class="chip">table</span><span class="chip">132 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>source_system × source_user_id</dd></div>
+            <div><dt>Business key</dt><dd>(source_system, source_user_id)</dd></div>
+            <div><dt>Load</dt><dd>bq load · CSV · --replace</dd></div>
+            <div><dt>Feeds</dt><dd>stg_identity_map</dd></div>
+          </dl>
+          <p class="why">
+            The bridge that makes "counted once" possible. Landed untouched — including any ambiguity —
+            because a broken identity feed is the single failure that most distorts churn, and it must be
+            visible rather than repaired on arrival.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">source_system <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td><span class="id">coupon</span> or <span class="id">cashback</span>. Half the key: source ids are only unique within their own system.</td></tr>
+              <tr><td class="c-name">source_user_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>The id that system uses (<span class="id">C1055</span>, <span class="id">B2055</span>). 66 of each in this extract.</td></tr>
+              <tr><td class="c-name">unified_user_id <span class="k k-fk">FK</span></td><td class="c-type">STRING</td><td>The person. 66 distinct values; this is the only column the analysis ever counts.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="raw">
+          <div class="entity-head">
+            <span class="entity-name">raw_coupon_activity</span>
+            <span class="chip solid">L0 raw</span><span class="chip">table</span><span class="chip">88 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>coupon_event_id (duplicates present)</dd></div>
+            <div><dt>Activity date</dt><dd>event_date</dd></div>
+            <div><dt>Known defects</dt><dd>CE0009 appears twice</dd></div>
+            <div><dt>Feeds</dt><dd>stg_coupon_events</dd></div>
+          </dl>
+          <p class="why">
+            Coupon copies. The simple side of the model: an event that happens once, means one thing, and
+            never changes afterwards.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">coupon_event_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Event identifier. Not unique on arrival — de-duplication is staging's job.</td></tr>
+              <tr><td class="c-name">coupon_user_id <span class="k k-fk">FK</span></td><td class="c-type">STRING</td><td>Coupon-side source id. Joins to the identity map on <span class="id">source_system = 'coupon'</span>.</td></tr>
+              <tr><td class="c-name">event_date</td><td class="c-type">DATE</td><td><b>The activity date for coupons.</b> Determines quarter membership; mandated by the brief.</td></tr>
+              <tr><td class="c-name">merchant_id</td><td class="c-type">STRING</td><td>Degenerate attribute. Two values here (M-C01, M-C03). Carried for drill-down, not used in churn logic.</td></tr>
+              <tr><td class="c-name">event_type</td><td class="c-type">STRING</td><td>Only <span class="id">coupon_copy</span> is eligible activity. Sole value in this extract, but the filter stays explicit so a new event type cannot silently start counting.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="raw">
+          <div class="entity-head">
+            <span class="entity-name">raw_cashback_transactions</span>
+            <span class="chip solid">L0 raw</span><span class="chip">table</span><span class="chip">99 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>transaction_id (duplicates present)</dd></div>
+            <div><dt>Activity date</dt><dd>purchase_date</dd></div>
+            <div><dt>Known defects</dt><dd>CB0001 twice · B9999 unmapped</dd></div>
+            <div><dt>Sources</dt><dd>6 affiliate networks, pre-combined</dd></div>
+          </dl>
+          <p class="why">
+            The hard side. Carries two dates that mean different things, a status that changes weeks after
+            the fact, and six upstream feeds that in production would each have their own column names and
+            status vocabulary.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">transaction_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Transaction identifier, unique only after de-duplication.</td></tr>
+              <tr><td class="c-name">cashback_user_id <span class="k k-fk">FK</span></td><td class="c-type">STRING</td><td>Cashback-side source id. <span class="id">B9999</span> has no identity-map row — the planted identity defect.</td></tr>
+              <tr><td class="c-name">purchase_date</td><td class="c-type">DATE</td><td><b>The activity date for cashback.</b> When the person actually shopped.</td></tr>
+              <tr><td class="c-name">merchant_id</td><td class="c-type">STRING</td><td>Degenerate attribute, five values.</td></tr>
+              <tr><td class="c-name">source</td><td class="c-type">STRING</td><td>Which of the six affiliate networks reported it. The axis every quality check is sliced by.</td></tr>
+              <tr><td class="c-name">status</td><td class="c-type">STRING</td><td><span class="id">approved</span> 91 · <span class="id">pending</span> 5 · <span class="id">rejected</span> 1 · <span class="id">cancelled</span> 1 (post-dedupe). Drives eligibility under both definitions.</td></tr>
+              <tr><td class="c-name">status_updated_date</td><td class="c-type">DATE</td><td>When the workflow decided. <b>Never used to date activity</b> — that would move a purchase into the quarter its paperwork cleared. NULL for all 5 pending rows, which is what makes the maturity model possible.</td></tr>
+              <tr><td class="c-name">amount_sar</td><td class="c-type">NUMERIC</td><td>Transaction value. Not part of any churn definition; used to size pending exposure in money as well as people.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <!-- ---------------- STAGING ---------------- -->
+        <h3 style="color:var(--l-stg)">L1 · Staging</h3>
+
+        <article class="entity" data-layer="stg">
+          <div class="entity-head">
+            <span class="entity-name">stg_identity_map</span>
+            <span class="chip solid">L1 staging</span><span class="chip">table</span><span class="chip">132 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>source_system × source_user_id (enforced)</dd></div>
+            <div><dt>Cluster</dt><dd>source_system, source_user_id</dd></div>
+            <div><dt>Transform</dt><dd>lower/trim keys · dedupe · flag conflicts</dd></div>
+            <div><dt>Feeds</dt><dd>int_unified_activity_events, fct spine</dd></div>
+          </dl>
+          <p class="why">
+            Two jobs. First, guarantee the key is unique so the identity join can never fan out. Second,
+            detect the case that would corrupt the model silently: <b>one source id resolving to more than
+            one person</b>. That row is kept and flagged rather than arbitrarily resolved, because picking a
+            winner would either merge two people or split one.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">source_system <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Lower-cased and trimmed so it matches <span class="id">channel</span> in the event stream exactly.</td></tr>
+              <tr><td class="c-name">source_user_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Trimmed. Case preserved — source ids are case-significant.</td></tr>
+              <tr><td class="c-name">unified_user_id</td><td class="c-type">STRING</td><td>The person. Also the source of the fact-table spine.</td></tr>
+              <tr><td class="c-name">has_ambiguous_mapping <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>TRUE when this source id maps to &gt;1 person. Excludes the identity from scope and fires an <b>error</b> assertion. 0 rows here.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="stg">
+          <div class="entity-head">
+            <span class="entity-name">stg_coupon_events</span>
+            <span class="chip solid">L1 staging</span><span class="chip">table</span><span class="chip">87 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>coupon_event_id (enforced)</dd></div>
+            <div><dt>Partition</dt><dd>DATE_TRUNC(event_date, MONTH)</dd></div>
+            <div><dt>Cluster</dt><dd>coupon_user_id</dd></div>
+            <div><dt>Removed</dt><dd>1 duplicate (CE0009)</dd></div>
+          </dl>
+          <p class="why">
+            De-duplication happens here and nowhere else, using
+            <code>QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY …) = 1</code> with a fully
+            deterministic ordering — so two runs of the pipeline keep the same row, and a diff between runs
+            means the data changed, not the tie-break.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">coupon_event_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Now genuinely unique.</td></tr>
+              <tr><td class="c-name">coupon_user_id</td><td class="c-type">STRING</td><td>Trimmed source id.</td></tr>
+              <tr><td class="c-name">event_date</td><td class="c-type">DATE</td><td>Activity date.</td></tr>
+              <tr><td class="c-name">merchant_id</td><td class="c-type">STRING</td><td>Carried through.</td></tr>
+              <tr><td class="c-name">event_type</td><td class="c-type">STRING</td><td>Lower-cased for a stable comparison.</td></tr>
+              <tr><td class="c-name">raw_row_count</td><td class="c-type">INT64</td><td>How many raw rows carried this id. Preserves the evidence that a duplicate existed after the duplicate is gone.</td></tr>
+              <tr><td class="c-name">was_duplicated_in_raw <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>Convenience form of the above; feeds a <b>warn</b> assertion.</td></tr>
+              <tr><td class="c-name">has_conflicting_duplicate <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>Same id, <em>different payload</em>. Graded <b>error</b>, not warn: a harmless replay and an integration bug look identical until you compare payloads.</td></tr>
+              <tr><td class="c-name">is_eligible_event <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td><span class="id">event_type = 'coupon_copy'</span>. Kept as a column, not a WHERE clause, so an eligibility change is a one-line edit and the ineligible rows remain countable.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="stg">
+          <div class="entity-head">
+            <span class="entity-name">stg_cashback_transactions</span>
+            <span class="chip solid">L1 staging</span><span class="chip">table</span><span class="chip">98 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>transaction_id (enforced)</dd></div>
+            <div><dt>Partition</dt><dd>DATE_TRUNC(purchase_date, MONTH)</dd></div>
+            <div><dt>Cluster</dt><dd>cashback_user_id, source</dd></div>
+            <div><dt>Union point</dt><dd>all six affiliate feeds</dd></div>
+          </dl>
+          <p class="why">
+            <b>This is where the six sources become one stream</b> — before any user-quarter aggregation, as
+            the brief requires. In production each network arrives with its own column names and its own
+            words for the same status (<span class="id">validated</span>, <span class="id">paid</span>,
+            <span class="id">declined</span>), so the union must normalise vocabulary first; otherwise one
+            network's "validated" quietly stops counting as activity and shows up as churn.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">transaction_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Unique after de-duplication.</td></tr>
+              <tr><td class="c-name">cashback_user_id</td><td class="c-type">STRING</td><td>Trimmed source id.</td></tr>
+              <tr><td class="c-name">purchase_date</td><td class="c-type">DATE</td><td>Activity date.</td></tr>
+              <tr><td class="c-name">merchant_id</td><td class="c-type">STRING</td><td>Carried through.</td></tr>
+              <tr><td class="c-name">source</td><td class="c-type">STRING</td><td>Affiliate network; the slicing axis for every source-level check.</td></tr>
+              <tr><td class="c-name">status</td><td class="c-type">STRING</td><td>Lower-cased raw status.</td></tr>
+              <tr><td class="c-name">status_class</td><td class="c-type">STRING</td><td><span class="id">settled</span> (approved) · <span class="id">in_flight</span> (pending) · <span class="id">failed</span> (rejected, cancelled) · <span class="id">unknown</span>. The <b>single place</b> the status vocabulary is interpreted; an unseen value maps to <span class="id">unknown</span> and fails loudly rather than defaulting to "not activity".</td></tr>
+              <tr><td class="c-name">status_updated_date</td><td class="c-type">DATE</td><td>Workflow timing only.</td></tr>
+              <tr><td class="c-name">days_to_status_decision</td><td class="c-type">INT64</td><td><span class="id">status_updated_date − purchase_date</span>. Feeds the approval maturity curve and the negative-value assertion. NULL while pending.</td></tr>
+              <tr><td class="c-name">amount_sar</td><td class="c-type">NUMERIC</td><td>Transaction value.</td></tr>
+              <tr><td class="c-name">raw_row_count</td><td class="c-type">INT64</td><td>Raw rows carrying this id.</td></tr>
+              <tr><td class="c-name">was_duplicated_in_raw <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>1 row TRUE (CB0001).</td></tr>
+              <tr><td class="c-name">has_conflicting_duplicate <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>Same id, different payload. 0 rows.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <!-- ---------------- DIM + INT ---------------- -->
+        <h3 style="color:var(--l-int)">L2 · Dimension &amp; unified event stream</h3>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">dim_quarter</span>
+            <span class="chip solid">dimension</span><span class="chip">table</span><span class="chip">4 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>quarter</dd></div>
+            <div><dt>Key</dt><dd>quarter_label</dd></div>
+            <div><dt>Built by</dt><dd>GENERATE_DATE_ARRAY</dd></div>
+            <div><dt>Role</dt><dd>the spine that makes inactivity exist</dd></div>
+          </dl>
+          <p class="why">
+            Materialised rather than derived. A quarter computed from a date can only ever describe quarters
+            that <em>have</em> data — and the entire analysis is about quarters that don't.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">quarter_label <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td><span class="id">2025Q1</span>…<span class="id">2025Q4</span>. Sorts correctly as text, which keeps every window function readable.</td></tr>
+              <tr><td class="c-name">quarter_start_date</td><td class="c-type">DATE</td><td>First day. The join key against <code>DATE_TRUNC(activity_date, QUARTER)</code>.</td></tr>
+              <tr><td class="c-name">quarter_end_date</td><td class="c-type">DATE</td><td>Last day. Also the T+0 reference point for the maturity vintages.</td></tr>
+              <tr><td class="c-name">quarter_index</td><td class="c-type">INT64</td><td>1–4. The explicit ordering for <code>LEAD()</code>, so quarter adjacency never depends on string sorting.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="int">
+          <div class="entity-head">
+            <span class="entity-name">int_unified_activity_events</span>
+            <span class="chip solid">L2 unified</span><span class="chip">table</span><span class="chip">185 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>channel × source_event_id</dd></div>
+            <div><dt>Partition</dt><dd>DATE_TRUNC(activity_date, MONTH)</dd></div>
+            <div><dt>Cluster</dt><dd>unified_user_id, channel</dd></div>
+            <div><dt>In scope</dt><dd>184 of 185</dd></div>
+          </dl>
+          <p class="why">
+            The pivot of the whole model: two channels with different column names, different date semantics
+            and different eligibility rules become <b>one grammar</b> — who, when, and does it count. It is
+            also the only place the identity map is joined, so identity resolution happens exactly once.
+          </p>
+          <p class="why">
+            Nothing is filtered out. Rows that fail a rule carry an <span class="id">is_in_scope = FALSE</span>
+            and a reason; the fact layer filters, the quality layer counts. A row that vanishes at this layer
+            is a number nobody can explain later.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">channel <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td><span class="id">coupon</span> / <span class="id">cashback</span>. Deliberately named to equal <span class="id">source_system</span> so the identity join is a straight equality.</td></tr>
+              <tr><td class="c-name">source_event_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>The originating event or transaction id. Ids are unique within a channel, not across — hence the composite key.</td></tr>
+              <tr><td class="c-name">source_feed</td><td class="c-type">STRING</td><td>Affiliate network for cashback; <span class="id">coupon_copy_event</span> for coupons. One column answers "where did this row come from" for both channels.</td></tr>
+              <tr><td class="c-name">source_user_id</td><td class="c-type">STRING</td><td>Pre-resolution id, retained so any classification can be walked back to the raw row.</td></tr>
+              <tr><td class="c-name">unified_user_id <span class="k k-fk">FK</span></td><td class="c-type">STRING</td><td>The person. NULL when the source id is unmapped — the join is LEFT precisely so this is visible.</td></tr>
+              <tr><td class="c-name">activity_date</td><td class="c-type">DATE</td><td><b>The unification that matters:</b> <span class="id">event_date</span> for coupons, <span class="id">purchase_date</span> for cashback, one column. Downstream code cannot pick the wrong date because only one is present.</td></tr>
+              <tr><td class="c-name">quarter_start_date</td><td class="c-type">DATE</td><td>From the shared UDF <span class="id">fn_quarter_start</span>.</td></tr>
+              <tr><td class="c-name">quarter_label</td><td class="c-type">STRING</td><td>From <span class="id">fn_quarter_label</span>. Both channels use the same two functions, so their quarter boundaries cannot drift apart.</td></tr>
+              <tr><td class="c-name">merchant_id</td><td class="c-type">STRING</td><td>Degenerate attribute, carried for drill-down.</td></tr>
+              <tr><td class="c-name">event_or_status</td><td class="c-type">STRING</td><td>The channel-specific qualifier in one column: <span class="id">coupon_copy</span>, or <span class="id">approved</span>/<span class="id">pending</span>/…</td></tr>
+              <tr><td class="c-name">amount_sar</td><td class="c-type">NUMERIC</td><td>NULL for coupon rows — a coupon copy has no transaction value, and 0 would be a lie that sums.</td></tr>
+              <tr><td class="c-name">counts_as_activity_baseline <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>coupon_copy, or cashback in (approved, pending).</td></tr>
+              <tr><td class="c-name">counts_as_activity_approved_only <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>coupon_copy, or cashback approved. <b>Both definitions are decided at row level, once</b> — every mart inherits them.</td></tr>
+              <tr><td class="c-name">is_unmapped_user <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>TRUE for CB0098 (B9999). 1 row.</td></tr>
+              <tr><td class="c-name">has_ambiguous_mapping <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>Propagated from the identity map.</td></tr>
+              <tr><td class="c-name">is_in_analysis_period <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>2025-01-01 … 2025-12-31.</td></tr>
+              <tr><td class="c-name">is_in_scope <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>Mapped ∧ unambiguous ∧ in period. <b>The single predicate the fact layer filters on</b>; scope is defined once, here.</td></tr>
+              <tr><td class="c-name">was_duplicated_in_raw · has_conflicting_duplicate</td><td class="c-type">BOOL</td><td>Propagated from staging so lineage flags survive to the point of use.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <!-- ---------------- FACT ---------------- -->
+        <h3 style="color:var(--l-fct)">L3 · Fact</h3>
+
+        <article class="entity" data-layer="fct">
+          <div class="entity-head">
+            <span class="entity-name">fct_user_quarter_activity</span>
+            <span class="chip solid">L3 fact</span><span class="chip">table</span><span class="chip">264 rows</span>
+            <span class="chip" style="border-color:var(--l-fct); color:var(--l-fct)">core deliverable</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>unified_user_id × quarter_label</dd></div>
+            <div><dt>Cluster</dt><dd>unified_user_id, quarter_label</dd></div>
+            <div><dt>Density</dt><dd>dense — 66 × 4, no gaps</dd></div>
+            <div><dt>Fact type</dt><dd>periodic snapshot (factless + measures)</dd></div>
+          </dl>
+          <p class="why">
+            A periodic snapshot fact: it records a <em>state</em> per person per period, not a transaction.
+            That is the right pattern because the question is "was this person present", and presence is a
+            property of a period, not an event. The transaction counts riding along are there for
+            traceability and quality checks, not because churn needs them.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">unified_user_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>The person. From the identity map, not from activity — so a person with no 2025 activity still exists in the table.</td></tr>
+              <tr><td class="c-name">quarter_label <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>From the spine.</td></tr>
+              <tr><td class="c-name">quarter_start_date · quarter_end_date · quarter_index</td><td class="c-type">DATE, DATE, INT64</td><td>Denormalised from <span class="id">dim_quarter</span>. Four rows do not justify a join in every downstream query, and <span class="id">quarter_index</span> is what <code>LEAD()</code> orders by.</td></tr>
+              <tr><td class="c-name">is_active_baseline <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td><b>The primary measure.</b> <code>LOGICAL_OR</code> of baseline eligibility across all the person's in-scope events in the quarter. One coupon copy or one approved/pending purchase is enough.</td></tr>
+              <tr><td class="c-name">is_active_approved_only <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>Same, with pending excluded. Asserted to be a strict subset of baseline.</td></tr>
+              <tr><td class="c-name">is_active_on_pending_only <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>Active under baseline but not approved-only. <b>The entire exposure of the reported active base to cashback approval risk, in one column.</b> 5 rows TRUE: U055 (Q2), U054 (Q3), U053/U056/U066 (Q4).</td></tr>
+              <tr><td class="c-name">is_active_coupon · is_active_cashback <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>Channel presence under the baseline definition. Enables channel analysis without breaking the one-row-per-person rule.</td></tr>
+              <tr><td class="c-name">activity_mix</td><td class="c-type">STRING</td><td><span class="id">both</span> / <span class="id">coupon_only</span> / <span class="id">cashback_only</span> / <span class="id">inactive</span>. Pre-computed because it is the most-requested cut and its logic should exist once. 4 users are <span class="id">both</span> in every quarter.</td></tr>
+              <tr><td class="c-name">eligible_coupon_events</td><td class="c-type">INT64</td><td>Count of eligible coupon copies in the quarter.</td></tr>
+              <tr><td class="c-name">cashback_transactions_total</td><td class="c-type">INT64</td><td>All cashback transactions, whatever their status.</td></tr>
+              <tr><td class="c-name">cashback_approved_transactions</td><td class="c-type">INT64</td><td>Approved only.</td></tr>
+              <tr><td class="c-name">cashback_pending_transactions</td><td class="c-type">INT64</td><td>Still undecided. Drives the pending exposure mart.</td></tr>
+              <tr><td class="c-name">cashback_excluded_transactions</td><td class="c-type">INT64</td><td>Rejected + cancelled. Retained so "this person did something that did not count" is answerable — the question that always follows a churn review.</td></tr>
+              <tr><td class="c-name">distinct_affiliate_sources</td><td class="c-type">INT64</td><td>How many networks the person's activity came through. A user-quarter that depends on a single feed is a user-quarter at risk if that feed breaks.</td></tr>
+              <tr><td class="c-name">approved_amount_sar · pending_amount_sar</td><td class="c-type">NUMERIC</td><td>Value settled and value at risk. Lets pending exposure be quoted in money as well as in people.</td></tr>
+              <tr><td class="c-name">first_activity_date · last_activity_date</td><td class="c-type">DATE</td><td>Within-quarter bounds. NULL when inactive — which is itself the cleanest test of the flag.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="fct">
+          <div class="entity-head">
+            <span class="entity-name">v_user_quarter_active</span>
+            <span class="chip solid">L3 fact</span><span class="chip">view</span><span class="chip">528 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>definition × unified_user_id × quarter</dd></div>
+            <div><dt>Built by</dt><dd>CROSS JOIN UNNEST(['baseline','approved_only'])</dd></div>
+            <div><dt>Reads</dt><dd>fct_user_quarter_activity</dd></div>
+            <div><dt>Read by</dt><dd>every churn mart</dd></div>
+          </dl>
+          <p class="why">
+            A view, not a table: it is a reshape with no computation, and materialising it would create a
+            second copy of the truth that could go stale. This one object is what turns "show how results
+            change if only approved transactions count" from a parallel pipeline into a
+            <code>GROUP BY</code>.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">definition_name <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td><span class="id">baseline</span> or <span class="id">approved_only</span>. The churn definition as data.</td></tr>
+              <tr><td class="c-name">unified_user_id · quarter_label <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Inherited grain.</td></tr>
+              <tr><td class="c-name">is_active <span class="k k-flag">FLAG</span></td><td class="c-type">BOOL</td><td>The correct flag for the row's definition. Downstream code never mentions "baseline" or "pending" again.</td></tr>
+              <tr><td class="c-name">quarter_start_date · quarter_index</td><td class="c-type">DATE, INT64</td><td>Carried for window ordering.</td></tr>
+              <tr><td class="c-name">activity_mix · is_active_on_pending_only</td><td class="c-type">STRING, BOOL</td><td>Carried so a mart can segment without rejoining the fact table.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <!-- ---------------- MARTS ---------------- -->
+        <h3 style="color:var(--l-mart)">L4 · Marts</h3>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_quarter_transitions</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">6 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>definition × (from_quarter → to_quarter)</dd></div>
+            <div><dt>Method</dt><dd>LEAD over quarter_index per person</dd></div>
+            <div><dt>Identity</dt><dd>retained + churned = active_base</dd></div>
+            <div><dt>Answers</dt><dd>brief · task 3</dd></div>
+          </dl>
+          <p class="why">
+            Single-quarter lapse churn: one silent quarter is enough. Built with <code>LEAD()</code> over the
+            dense spine, which is only valid <em>because</em> the spine is dense — on a sparse table
+            <code>LEAD</code> would skip an inactive quarter and jump to the next active one, quietly
+            reporting perfect retention.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">definition_name <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Which churn definition this row was computed under.</td></tr>
+              <tr><td class="c-name">from_quarter · to_quarter <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Q1→Q2, Q2→Q3, Q3→Q4.</td></tr>
+              <tr><td class="c-name">active_base</td><td class="c-type">INT64</td><td>Users active in <span class="id">from_quarter</span>. The denominator, stated explicitly rather than implied.</td></tr>
+              <tr><td class="c-name">retained_users</td><td class="c-type">INT64</td><td>Active in both.</td></tr>
+              <tr><td class="c-name">churned_users</td><td class="c-type">INT64</td><td>Active in <span class="id">from</span>, silent in <span class="id">to</span>.</td></tr>
+              <tr><td class="c-name">next_quarter_churn_rate</td><td class="c-type">FLOAT64</td><td>churned ÷ active_base, via <code>SAFE_DIVIDE</code> so an empty quarter yields NULL rather than an error.</td></tr>
+              <tr><td class="c-name">next_quarter_retention_rate</td><td class="c-type">FLOAT64</td><td>The complement, materialised so nobody recomputes 1−x inconsistently.</td></tr>
+              <tr><td class="c-name">new_or_returning_users</td><td class="c-type">INT64</td><td>Inactive in <span class="id">from</span>, active in <span class="id">to</span>. Not requested, but it is the first question asked after any churn number, and the data is already in the window.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_q1_cohort_users</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">132 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>definition × unified_user_id</dd></div>
+            <div><dt>Shape</dt><dd>quarters pivoted to columns</dd></div>
+            <div><dt>Role</dt><dd>audit trail for the summary</dd></div>
+            <div><dt>Answers</dt><dd>brief · tasks 4–5</dd></div>
+          </dl>
+          <p class="why">
+            The user-level table exists so every number in the cohort summary can be resolved to named
+            people. A cohort figure nobody can decompose is a figure nobody can defend in a review.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">definition_name · unified_user_id <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Grain.</td></tr>
+              <tr><td class="c-name">active_q1 … active_q4</td><td class="c-type">BOOL</td><td>Quarters pivoted to columns. Cohort logic is about a <em>pattern across</em> quarters, and a pattern is far easier to read — and to test — across columns than down rows.</td></tr>
+              <tr><td class="c-name">activity_pattern</td><td class="c-type">STRING</td><td>The four flags as a bitstring, e.g. <span class="id">1011</span>. Makes "how many people did exactly this" a <code>GROUP BY</code> on one column, and makes anomalies visible at a glance.</td></tr>
+              <tr><td class="c-name">q1_cohort_status</td><td class="c-type">STRING</td><td><span class="id">retained_in_q2</span> · <span class="id">lapsed_q2_reactivated_q3</span> · <span class="id">confirmed_churn</span> · <span class="id">not_in_q1_cohort</span>. Mutually exclusive and exhaustive by construction, which is what makes the reconciliation assertion possible.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_q1_cohort_summary</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">2 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>definition</dd></div>
+            <div><dt>Identity</dt><dd>confirmed + reactivated = lapsed_in_q2</dd></div>
+            <div><dt>Cohort</dt><dd>45 users active in 2025Q1</dd></div>
+            <div><dt>Answers</dt><dd>brief · tasks 4–5</dd></div>
+          </dl>
+          <p class="why">
+            Two churn definitions in the arithmetic sense sit side by side here: single-quarter lapse
+            (19 users) and confirmed churn (12). <b>The gap between them is exactly the reactivation
+            population</b> — the 7 people who came back in Q3. That is not a rounding difference; it is 37%
+            of everyone who went quiet, and it is the reason the recommendation is a two-quarter definition.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">definition_name <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Grain.</td></tr>
+              <tr><td class="c-name">q1_cohort_users</td><td class="c-type">INT64</td><td>Active in Q1. 45 under both definitions.</td></tr>
+              <tr><td class="c-name">retained_in_q2 · lapsed_in_q2</td><td class="c-type">INT64</td><td>The Q1→Q2 split. <span class="id">lapsed_in_q2</span> is the denominator of the reactivation rate.</td></tr>
+              <tr><td class="c-name">confirmed_churn_users</td><td class="c-type">INT64</td><td><b>Silent in Q2 <em>and</em> Q3.</b> 12. The recommended definition for the financial model.</td></tr>
+              <tr><td class="c-name">confirmed_churn_rate_of_cohort</td><td class="c-type">FLOAT64</td><td>÷ cohort size. 26.67%.</td></tr>
+              <tr><td class="c-name">reactivated_in_q3_users</td><td class="c-type">INT64</td><td>Silent in Q2, back in Q3. 7 (baseline).</td></tr>
+              <tr><td class="c-name">reactivation_rate_of_lapsed_q2</td><td class="c-type">FLOAT64</td><td><b>÷ users who lapsed in Q2</b>, not ÷ cohort — the denominator the brief specifies. 36.84%.</td></tr>
+              <tr><td class="c-name">reactivated_share_of_cohort</td><td class="c-type">FLOAT64</td><td>The other denominator, materialised explicitly so the two rates can never be confused for one another.</td></tr>
+              <tr><td class="c-name">single_quarter_churn_rate_q1_q2</td><td class="c-type">FLOAT64</td><td>42.22%. Sits next to confirmed churn so the cost of declaring churn a quarter early is visible in one row.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_definition_sensitivity</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">3 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>transition</dd></div>
+            <div><dt>Built by</dt><dd>self-join of transitions on definition</dd></div>
+            <div><dt>Companion</dt><dd>mart_definition_disagreements</dd></div>
+            <div><dt>Answers</dt><dd>brief · task 6</dd></div>
+          </dl>
+          <p class="why">
+            Baseline against approved-only, side by side with deltas. Approved-only raises churn in all three
+            transitions (+2.2, +3.6, +2.8 pp) and the effect concentrates in Q4 — the newest and least
+            matured quarter. That concentration is the argument against approved-only, and it is visible
+            only because both definitions were computed on identical rows.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">from_quarter · to_quarter <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Grain.</td></tr>
+              <tr><td class="c-name">baseline_active_base · approved_only_active_base · active_base_delta</td><td class="c-type">INT64</td><td>How many people the rule change removes from the denominator.</td></tr>
+              <tr><td class="c-name">baseline_churned · approved_only_churned · churned_delta</td><td class="c-type">INT64</td><td>And from the numerator. Both are shown because a rate can move for either reason.</td></tr>
+              <tr><td class="c-name">baseline_churn_rate · approved_only_churn_rate</td><td class="c-type">FLOAT64</td><td>The two published rates.</td></tr>
+              <tr><td class="c-name">churn_rate_delta_pp</td><td class="c-type">FLOAT64</td><td>Difference in percentage points — the number that goes in the note.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_definition_disagreements</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">5 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>unified_user_id × quarter</dd></div>
+            <div><dt>Filter</dt><dd>is_active_on_pending_only</dd></div>
+            <div><dt>Contents</dt><dd>U055 Q2 · U054 Q3 · U053/U056/U066 Q4</dd></div>
+            <div><dt>Role</dt><dd>traceability for the sensitivity table</dd></div>
+          </dl>
+          <p class="why">
+            Five rows, and every number in the sensitivity mart decomposes into them. This is what makes the
+            walkthrough possible: <b>U055</b>'s entire Q2 is one pending transaction, so the same person is
+            retained under one rule and churned-then-reactivated under the other, with nothing about their
+            behaviour having changed — only an affiliate network's paperwork.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">unified_user_id · quarter_label <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>The disputed user-quarter.</td></tr>
+              <tr><td class="c-name">cashback_pending_transactions</td><td class="c-type">INT64</td><td>How many undecided transactions the classification rests on.</td></tr>
+              <tr><td class="c-name">pending_amount_sar</td><td class="c-type">NUMERIC</td><td>The value at stake.</td></tr>
+              <tr><td class="c-name">disagreement</td><td class="c-type">STRING</td><td>Which way the two definitions disagree, in words, so the table needs no external legend.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_pending_exposure</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">4 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>quarter</dd></div>
+            <div><dt>Reads</dt><dd>fct + stg_cashback_transactions</dd></div>
+            <div><dt>Headline</dt><dd>share_of_active_base_at_risk</dd></div>
+            <div><dt>Answers</dt><dd>brief · task 8</dd></div>
+          </dl>
+          <p class="why">
+            The footnote that must travel with the newest quarter. It answers one question precisely: what
+            share of the reported active base could a pending decision still remove?
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">quarter_label <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Grain.</td></tr>
+              <tr><td class="c-name">active_users_baseline · active_users_approved_only</td><td class="c-type">INT64</td><td>The two ends of the honest range.</td></tr>
+              <tr><td class="c-name">users_active_only_via_pending</td><td class="c-type">INT64</td><td>The width of that range in people.</td></tr>
+              <tr><td class="c-name">active_users_with_any_pending</td><td class="c-type">INT64</td><td>Broader exposure: active users touched by any pending transaction, even if other activity already secures them.</td></tr>
+              <tr><td class="c-name">share_of_active_base_at_risk</td><td class="c-type">FLOAT64</td><td><b>The number to publish beside the latest quarter.</b></td></tr>
+              <tr><td class="c-name">pending_transactions · pending_transaction_rate</td><td class="c-type">INT64, FLOAT64</td><td>Backlog volume, absolute and relative.</td></tr>
+              <tr><td class="c-name">pending_amount_sar · gross_amount_sar</td><td class="c-type">NUMERIC</td><td>The same exposure in money, for the finance-side conversation.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">tvf_user_quarter_activity_as_of</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table function</span><span class="chip">param: as_of_date</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>unified_user_id × quarter (sparse)</dd></div>
+            <div><dt>Reads</dt><dd>stg_* directly, bypassing the fact table</dd></div>
+            <div><dt>Feeds</dt><dd>mart_churn_vintage_comparison</dd></div>
+            <div><dt>Answers</dt><dd>brief · task 8</dd></div>
+          </dl>
+          <p class="why">
+            Rebuilds activity <b>as it would have looked on any past date</b>: a transaction whose decision
+            had not yet happened is treated as pending, exactly as the extract would have shown it at the
+            time. This is what turns "the latest quarter is provisional" from a caveat into a measurement —
+            restatement magnitude becomes a number you can put an error bar on.
+          </p>
+          <p class="why">
+            It reads staging rather than the fact table by necessity: the fact table encodes today's
+            statuses, and the whole point is to un-know them. Its output is sparse because a vintage has no
+            meaningful spine — quarters that had not happened yet should not exist in it.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">as_of_date</td><td class="c-type">DATE</td><td>The vintage. Echoed into the output so results from different cutoffs can be unioned without losing which is which.</td></tr>
+              <tr><td class="c-name">unified_user_id · quarter_label <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Grain.</td></tr>
+              <tr><td class="c-name">is_active_baseline · is_active_approved_only</td><td class="c-type">BOOL</td><td>Recomputed under the as-of status, not copied from the fact table.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_churn_vintage_comparison</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">8 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>vintage × definition</dd></div>
+            <div><dt>Vintages</dt><dd>T+0, T+30, T+45, T+90</dd></div>
+            <div><dt>Transition</dt><dd>2025Q2 → 2025Q3</dd></div>
+            <div><dt>Witness</dt><dd>CB0094</dd></div>
+          </dl>
+          <p class="why">
+            The same transition measured at four reporting dates. <span class="id">CB0094</span> is the
+            case in point: purchased 2025-08-10, not approved until 2025-10-19 — invisible at Q3 close,
+            present six weeks later. The movement between vintages <em>is</em> the cost of publishing early,
+            and it is what a reporting lag has to cover.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">vintage_label · as_of_date <span class="k k-pk">PK</span></td><td class="c-type">STRING, DATE</td><td>Which reporting date this row represents.</td></tr>
+              <tr><td class="c-name">definition_name <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Both definitions are measured at every vintage — the comparison is only meaningful across both.</td></tr>
+              <tr><td class="c-name">from_quarter · to_quarter</td><td class="c-type">STRING</td><td>Fixed at Q2→Q3, the transition with enough post-close decisions to demonstrate movement.</td></tr>
+              <tr><td class="c-name">active_base · retained_users · churned_users · churn_rate</td><td class="c-type">INT64, FLOAT64</td><td>Same measures as the main transition mart, so vintages are directly comparable to the published figure.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_cashback_approval_maturity</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">7 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>source (+ one ALL SOURCES row)</dd></div>
+            <div><dt>Population</dt><dd>decided transactions only</dd></div>
+            <div><dt>Output</dt><dd>the reporting-lag decision</dd></div>
+            <div><dt>Answers</dt><dd>brief · task 8</dd></div>
+          </dl>
+          <p class="why">
+            Fitted on transactions that <em>have</em> been decided, then applied to those that have not.
+            Split by source because networks differ by weeks in real life, and a single blended lag would be
+            too slow for the fast ones and too fast for the slow ones. Choose the reporting lag where ≥95%
+            of transactions are decided.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">source <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Affiliate network, plus a blended <span class="id">ALL SOURCES</span> row.</td></tr>
+              <tr><td class="c-name">decided_transactions</td><td class="c-type">INT64</td><td>Sample size behind the curve. Published because a maturity curve fitted on a handful of rows should not be trusted silently.</td></tr>
+              <tr><td class="c-name">eventual_approval_rate</td><td class="c-type">FLOAT64</td><td>Share of decided transactions that ended approved. The haircut to apply to a pending backlog.</td></tr>
+              <tr><td class="c-name">decided_within_30d / 45d / 60d / 90d</td><td class="c-type">FLOAT64</td><td>The cumulative maturity curve. Directly answers "how long must we wait".</td></tr>
+              <tr><td class="c-name">p50 / p90 / max_days_to_decision</td><td class="c-type">INT64</td><td>Typical, tail and worst case. p90 rather than the mean, because the tail is what forces restatements.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_cashback_source_profile</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">24 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>source × quarter (6 × 4)</dd></div>
+            <div><dt>Reads</dt><dd>stg_cashback_transactions + stg_identity_map</dd></div>
+            <div><dt>Purpose</dt><dd>make one bad feed visible</dd></div>
+            <div><dt>Answers</dt><dd>brief · task 2</dd></div>
+          </dl>
+          <p class="why">
+            Six feeds are unioned before aggregation, so a single broken feed moves the churn number without
+            anything else looking wrong. <b>A network that quietly stops delivering is indistinguishable from
+            a wave of churn</b> — unless something is watching per-source volume. This table is that
+            something.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">source · quarter_label <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Grain. All six sources appear in all four quarters here.</td></tr>
+              <tr><td class="c-name">transactions · distinct_source_users</td><td class="c-type">INT64</td><td>Volume and reach.</td></tr>
+              <tr><td class="c-name">prior_quarter_transactions · transactions_qoq_change</td><td class="c-type">INT64, FLOAT64</td><td><b>The feed-continuity check.</b> Alert on deviation from the source's own trailing baseline, not against other sources.</td></tr>
+              <tr><td class="c-name">approved / pending / rejected / cancelled_txns</td><td class="c-type">INT64</td><td>Full status mix per feed.</td></tr>
+              <tr><td class="c-name">unknown_status_txns</td><td class="c-type">INT64</td><td>Values outside the vocabulary. On real data this is the vocabulary-drift alarm — a network renaming <span class="id">approved</span> would otherwise present as churn.</td></tr>
+              <tr><td class="c-name">approval_rate · pending_rate · failed_rate</td><td class="c-type">FLOAT64</td><td>Normalised status mix, comparable across sources of different sizes.</td></tr>
+              <tr><td class="c-name">rows_with_unmapped_user · unmapped_rate</td><td class="c-type">INT64, FLOAT64</td><td>Identity coverage per feed. A spike means the identity feed broke for that partner and their users are vanishing from the active base.</td></tr>
+              <tr><td class="c-name">rows_duplicated_in_raw · rows_with_conflicting_duplicate</td><td class="c-type">INT64</td><td>Delivery hygiene per feed.</td></tr>
+              <tr><td class="c-name">median / max_days_to_decision</td><td class="c-type">INT64</td><td>Workflow latency per feed, per quarter — a network slowing down is an early warning of a future restatement.</td></tr>
+              <tr><td class="c-name">decisions_landing_in_later_quarter</td><td class="c-type">INT64</td><td>Transactions whose decision fell in a later quarter than the purchase. <b>Exactly the rows that would migrate between quarters if anyone ever dated activity by <span class="id">status_updated_date</span>.</b></td></tr>
+              <tr><td class="c-name">gross / approved / pending_amount_sar</td><td class="c-type">NUMERIC</td><td>Value, for reconciliation against the network's own reports and the finance payout file.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_quarterly_active_base</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">8 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>definition × quarter</dd></div>
+            <div><dt>Values</dt><dd>baseline 45 / 37 / 38 / 46</dd></div>
+            <div><dt>Cross-check</dt><dd>recounted from the event stream</dd></div>
+            <div><dt>Feeds</dt><dd>mart_report_summary</dd></div>
+          </dl>
+          <p class="why">
+            The denominator table, published on its own. It is also the anchor of the strongest assertion in
+            the model: the active base is recomputed independently straight from
+            <span class="id">int_unified_activity_events</span> and compared — so a spine or join defect
+            cannot pass silently.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">definition_name · quarter_label <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Grain.</td></tr>
+              <tr><td class="c-name">active_users</td><td class="c-type">INT64</td><td>Distinct people active — one row per person guarantees the distinctness.</td></tr>
+              <tr><td class="c-name">active_coupon_only · active_cashback_only · active_both_channels</td><td class="c-type">INT64</td><td>The channel decomposition. Sums back to <span class="id">active_users</span> by construction, which is the visible proof of "counted once". 4 people are active on both sides in every quarter.</td></tr>
+              <tr><td class="c-name">active_on_pending_only</td><td class="c-type">INT64</td><td>How much of this base rests on undecided transactions.</td></tr>
+              <tr><td class="c-name">users_in_universe</td><td class="c-type">INT64</td><td>Always 66. Present so the active base is always read against its universe rather than against last quarter's base.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="mart">
+          <div class="entity-head">
+            <span class="entity-name">mart_report_summary</span>
+            <span class="chip solid">L4 mart</span><span class="chip">table</span><span class="chip">104 rows</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>section × definition × period × metric</dd></div>
+            <div><dt>Shape</dt><dd>long / tidy, one value per row</dd></div>
+            <div><dt>Consumer</dt><dd>the Excel / Sheets deliverable</dd></div>
+            <div><dt>Companion</dt><dd>v_headline_churn</dd></div>
+          </dl>
+          <p class="why">
+            Deliberately long rather than wide. A tidy table pivots into any shape the workbook needs and
+            survives new metrics without a schema change — and, more importantly, it means
+            <b>the workbook contains no number that was typed by hand</b>.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">section_order · section</td><td class="c-type">INT64, STRING</td><td>Report block: active base, transitions, Q1 cohort, pending exposure. The order column keeps presentation sequence out of the consumer's hands.</td></tr>
+              <tr><td class="c-name">definition_name <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Which definition produced the value.</td></tr>
+              <tr><td class="c-name">period <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>A quarter, a transition (<span class="id">2025Q1 -&gt; 2025Q2</span>), or a cohort label.</td></tr>
+              <tr><td class="c-name">metric <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Measure name, matching the source mart's column name exactly so every value is traceable to where it was computed.</td></tr>
+              <tr><td class="c-name">value</td><td class="c-type">NUMERIC</td><td>Counts and rates in one column. NUMERIC throughout: exact decimal, so a rate that reaches a spreadsheet is the rate that was computed.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <!-- ---------------- DQ ---------------- -->
+        <h3 style="color:var(--l-dq)">Quality layer (cross-cutting)</h3>
+
+        <article class="entity" data-layer="dq">
+          <div class="entity-head">
+            <span class="entity-name">dq_check_results</span>
+            <span class="chip solid">quality</span><span class="chip">table</span><span class="chip">21 assertions</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>check_name</dd></div>
+            <div><dt>Grades</dt><dd>error (block) · warn (footnote)</dd></div>
+            <div><dt>Gate</dt><dd>0 error-severity FAILs to publish</dd></div>
+            <div><dt>Expected</dt><dd>3 FAIL on this extract, by design</dd></div>
+          </dl>
+          <p class="why">
+            Three families of check. <b>Input defects</b>: duplicates, unmapped ids, unknown status values,
+            impossible date orders. <b>Grain integrity</b>: the fact table is unique and complete, and
+            approved-only actives are a strict subset of baseline actives. <b>Reconciliation identities</b>:
+            <span class="id">retained + churned = active_base</span>,
+            <span class="id">confirmed + reactivated = lapsed_in_q2</span>, and an independent recount of
+            the active base from the event stream.
+          </p>
+          <p class="why">
+            The reconciliation checks are the valuable ones. Input checks catch bad data; identity checks
+            catch <em>bad code</em> — a refactor that breaks the arithmetic fails here before it reaches
+            anyone's model.
+          </p>
+          <div class="scroll"><table>
+            <thead><tr><th>Column</th><th>Type</th><th>Definition &amp; rationale</th></tr></thead>
+            <tbody>
+              <tr><td class="c-name">check_name <span class="k k-pk">PK</span></td><td class="c-type">STRING</td><td>Stable identifier, safe to alert on.</td></tr>
+              <tr><td class="c-name">severity</td><td class="c-type">STRING</td><td><span class="id">error</span> blocks publication; <span class="id">warn</span> publishes with a footnote. Grading is what stops a check suite from being switched off wholesale.</td></tr>
+              <tr><td class="c-name">check_description</td><td class="c-type">STRING</td><td>What the check means in business terms — an alert nobody understands gets muted.</td></tr>
+              <tr><td class="c-name">failing_records</td><td class="c-type">INT64</td><td>Count of offending rows, not a boolean: severity of a problem is usually its size.</td></tr>
+              <tr><td class="c-name">tolerance</td><td class="c-type">INT64</td><td>Accepted failures, 0 everywhere today. Exists so that accepting a known defect later is a recorded decision with a number attached, rather than a check someone quietly deleted.</td></tr>
+              <tr><td class="c-name">check_status</td><td class="c-type">STRING</td><td>PASS / FAIL against tolerance.</td></tr>
+              <tr><td class="c-name">checked_at</td><td class="c-type">TIMESTAMP</td><td>Run timestamp, so a stale result cannot be mistaken for a passing one.</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="entity" data-layer="dq">
+          <div class="entity-head">
+            <span class="entity-name">dq_excluded_events</span>
+            <span class="chip solid">quality</span><span class="chip">view</span><span class="chip">1 row</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>excluded event</dd></div>
+            <div><dt>Filter</dt><dd>NOT is_in_scope</dd></div>
+            <div><dt>Contents</dt><dd>CB0098 · B9999 · 85 SAR · Q2</dd></div>
+            <div><dt>Role</dt><dd>the row behind the count</dd></div>
+          </dl>
+          <p class="why">
+            Every excluded row, with a plain-language <span class="id">exclusion_reason</span>. An aggregate
+            defect count tells you something is wrong; this tells you which record, so the identity feed can
+            actually be fixed.
+          </p>
+        </article>
+
+        <article class="entity" data-layer="dq">
+          <div class="entity-head">
+            <span class="entity-name">dq_cross_source_duplicate_suspects</span>
+            <span class="chip solid">quality</span><span class="chip">table</span><span class="chip">0 rows here</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Grain</dt><dd>user × date × merchant × amount</dd></div>
+            <div><dt>Fires when</dt><dd>&gt;1 affiliate source in the group</dd></div>
+            <div><dt>Blind spot covered</dt><dd>differing transaction ids</dd></div>
+            <div><dt>Impact</dt><dd>volume only, not churn</dd></div>
+          </dl>
+          <p class="why">
+            Two networks reporting the same purchase. Their transaction ids differ, so id-level
+            de-duplication cannot see it. Worth stating plainly: this inflates transaction counts but
+            <b>not</b> the churn number, because a person is counted once per quarter regardless — which is
+            itself a good argument for building churn on a user-quarter grain rather than on transaction
+            volumes.
+          </p>
+        </article>
+
+        <article class="entity" data-layer="dq">
+          <div class="entity-head">
+            <span class="entity-name">fn_quarter_start · fn_quarter_label</span>
+            <span class="chip solid">shared</span><span class="chip">UDF</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Signature</dt><dd>(DATE) → DATE | STRING</dd></div>
+            <div><dt>Used by</dt><dd>L2, L3, L4, TVF</dd></div>
+            <div><dt>Guarantees</dt><dd>identical quarter boundaries everywhere</dd></div>
+            <div><dt>Change surface</dt><dd>fiscal calendar = 2 lines</dd></div>
+          </dl>
+          <p class="why">
+            Two trivial functions with a serious job: the coupon side and the cashback side must never
+            disagree about where a quarter starts. Inlining <code>DATE_TRUNC</code> in nine places is nine
+            chances to get one of them wrong — and if Sahseh ever adopts a fiscal calendar, these two
+            definitions are the entire change.
+          </p>
+        </article>
+      </section>
+
+      <!-- =================================================================
+           05 RULES
+           ================================================================= -->
+      <section id="rules">
+        <h2><span class="n">05</span> Rule enforcement map</h2>
+        <p class="lede">
+          Each rule from the brief, the single object that enforces it, and why it lives there rather than
+          anywhere else. Every rule has exactly one home.
+        </p>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Rule</th><th>Enforced in</th><th>Mechanism</th><th>Why there</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Analysis period 2025Q1–Q4</td>
+                <td class="c-type">dim_quarter · int_unified_activity_events</td>
+                <td>spine + <span class="id">is_in_analysis_period</span></td>
+                <td>The spine defines which quarters can exist; the flag records which events fall inside. Both are needed — one bounds the report, the other bounds the input.</td>
+              </tr>
+              <tr>
+                <td>Coupon activity dated by event_date</td>
+                <td class="c-type">int_unified_activity_events</td>
+                <td>mapped into <span class="id">activity_date</span></td>
+                <td>Collapsing both date semantics into one column at the moment of union means no later query can choose the wrong one.</td>
+              </tr>
+              <tr>
+                <td>Cashback activity dated by purchase_date</td>
+                <td class="c-type">int_unified_activity_events</td>
+                <td>same column, same union</td>
+                <td>Same reason. <span class="id">status_updated_date</span> is deliberately not carried into the event stream at all.</td>
+              </tr>
+              <tr>
+                <td>Only eligible coupon_copy events count</td>
+                <td class="c-type">stg_coupon_events</td>
+                <td><span class="id">is_eligible_event</span> flag</td>
+                <td>Eligibility is a property of the event, so it is decided where the event is cleaned — as a flag, so ineligible rows stay countable.</td>
+              </tr>
+              <tr>
+                <td>Approved or pending count; rejected and cancelled never do</td>
+                <td class="c-type">stg (classify) → int (apply)</td>
+                <td><span class="id">status_class</span> → <span class="id">counts_as_activity_*</span></td>
+                <td>Vocabulary interpretation and eligibility are different decisions. Splitting them means a new status value from a network changes one <code>CASE</code>, not the churn logic.</td>
+              </tr>
+              <tr>
+                <td>De-duplicate repeated ids before calculation</td>
+                <td class="c-type">stg_coupon_events · stg_cashback_transactions</td>
+                <td><code>QUALIFY ROW_NUMBER() = 1</code></td>
+                <td>Must happen before any join, or one duplicate id fans out into duplicated activity. Staging is the last layer before the identity join.</td>
+              </tr>
+              <tr>
+                <td>Resolve source ids via the Identity Map</td>
+                <td class="c-type">int_unified_activity_events</td>
+                <td>LEFT JOIN on (channel, source_user_id)</td>
+                <td>Exactly one join, in one place. LEFT rather than INNER so unmapped ids become visible rather than disappearing.</td>
+              </tr>
+              <tr>
+                <td>Combine six affiliate sources before user-quarter aggregation</td>
+                <td class="c-type">stg_cashback_transactions</td>
+                <td>UNION ALL with normalised vocabulary</td>
+                <td>Before aggregation, as the brief requires, and before the identity join so cross-source activity by one person merges naturally.</td>
+              </tr>
+              <tr>
+                <td>Count each person once</td>
+                <td class="c-type">fct_user_quarter_activity</td>
+                <td>primary key = (person, quarter)</td>
+                <td>Enforced by grain, not by a <code>DISTINCT</code>. A rule enforced by structure cannot be forgotten in a query someone writes next month.</td>
+              </tr>
+              <tr>
+                <td>Show results under approved-only</td>
+                <td class="c-type">v_user_quarter_active</td>
+                <td>definition as a dimension</td>
+                <td>Both definitions computed from identical rows in the same query, so they cannot drift.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           06 DECISIONS
+           ================================================================= -->
+      <section id="decisions">
+        <h2><span class="n">06</span> Design decisions</h2>
+        <p class="lede">
+          Seven choices where a defensible alternative existed. Each records what was chosen, why, and what
+          was rejected.
+        </p>
+
+        <div class="decision">
+          <h4>D1 · Dense spine instead of a sparse activity table</h4>
+          <p>
+            The fact table materialises every person × quarter combination, active or not. It makes churn a
+            <code>COUNTIF</code> and makes <code>LEAD()</code> safe across gaps.
+          </p>
+          <p class="alt">
+            <b>Rejected:</b> aggregating only observed activity. On a sparse table <code>LEAD()</code> skips
+            silent quarters and jumps to the next active one — reporting near-perfect retention for users
+            who disappeared for six months. The bug is invisible in review and catastrophic in a model.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>D2 · Churn definition as a dimension, not a fork</h4>
+          <p>
+            Both definitions are computed on every row of every mart, distinguished by
+            <span class="id">definition_name</span>.
+          </p>
+          <p class="alt">
+            <b>Rejected:</b> a parameterised pipeline rebuilt per definition, or a second copy of the SQL.
+            Both make the sensitivity analysis a diff between two runs rather than a column, and both drift
+            the moment one copy is fixed and the other is not.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>D3 · Flag rows, never drop them</h4>
+          <p>
+            Staging and the unified layer filter nothing. Bad rows carry
+            <span class="id">is_in_scope = FALSE</span> and a reason; the fact layer applies the filter, the
+            quality layer counts what was filtered.
+          </p>
+          <p class="alt">
+            <b>Rejected:</b> <code>WHERE status != 'rejected'</code> in staging. It produces the same
+            numbers and destroys the ability to answer "how many did we exclude, and which ones" — the first
+            question asked when a churn figure is challenged.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>D4 · Unmapped identities excluded and reported, not invented</h4>
+          <p>
+            <span class="id">B9999</span> has no identity-map row. Its transaction is excluded from the
+            fact table, raised as an <b>error</b>, and listed row-by-row.
+          </p>
+          <p class="alt">
+            <b>Rejected — synthesising a unified id from the source id:</b> puts a fabricated person in the
+            denominator and hides a broken identity feed behind a plausible number.<br>
+            <b>Rejected — dropping it silently:</b> the same distortion with no trace at all. Excluding
+            loudly is the only option that keeps the number defensible <em>and</em> gets the feed fixed.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>D5 · Merchant is a degenerate attribute, not a dimension</h4>
+          <p>
+            <span class="id">merchant_id</span> is carried on the event stream for drill-down and never
+            joined to anything.
+          </p>
+          <p class="alt">
+            <b>Rejected:</b> a <span class="id">dim_merchant</span>. There are no merchant attributes in
+            scope and churn is not measured per merchant, so the dimension would be a join that costs
+            something and buys nothing. When merchant attributes arrive — category, commercial tier — it
+            becomes a conformed dimension and the event stream already holds the key.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>D6 · Periodic-snapshot fact, not an accumulating snapshot</h4>
+          <p>
+            One row per person per quarter recording state, rather than one row per person tracking their
+            lifecycle milestones through updates.
+          </p>
+          <p class="alt">
+            <b>Rejected:</b> an accumulating snapshot with <span class="id">churned_at</span> /
+            <span class="id">reactivated_at</span> columns. It requires the churn definition to be fixed at
+            write time — and the entire brief is about comparing definitions. Snapshot rows let the
+            definition stay a read-time decision.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>D7 · Vintage restatement as a table function reading staging</h4>
+          <p>
+            <span class="id">tvf_user_quarter_activity_as_of</span> takes a cutoff date and reconstructs
+            activity as it was known then, reading staging directly.
+          </p>
+          <p class="alt">
+            <b>Rejected — a snapshot table appended each reporting run:</b> correct, but it only starts
+            producing evidence from the day it is switched on, and the reporting-lag decision is needed now.
+            Deriving vintages from <span class="id">status_updated_date</span> reconstructs history that
+            already exists. In production both belong: the TVF to choose the lag, snapshots to prove it
+            afterwards.
+          </p>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           07 CARDINALITY
+           ================================================================= -->
+      <section id="cardinality">
+        <h2><span class="n">07</span> Cardinality ledger</h2>
+        <p class="lede">
+          Every row that enters the model, and where it goes. These figures are the arithmetic behind the
+          reconciliation assertions.
+        </p>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Step</th><th>In</th><th>Out</th><th>Δ</th><th>Explanation</th></tr></thead>
+            <tbody>
+              <tr><td>Coupon: raw → staging</td><td class="c-num">88</td><td class="c-num">87</td><td class="c-num">−1</td><td>Duplicate <span class="id">CE0009</span>, identical payload.</td></tr>
+              <tr><td>Cashback: raw → staging</td><td class="c-num">99</td><td class="c-num">98</td><td class="c-num">−1</td><td>Duplicate <span class="id">CB0001</span>, identical payload.</td></tr>
+              <tr><td>Identity map: raw → staging</td><td class="c-num">132</td><td class="c-num">132</td><td class="c-num">0</td><td>66 people × 2 systems. No duplicates, no ambiguity.</td></tr>
+              <tr><td>Staging → unified events</td><td class="c-num">185</td><td class="c-num">185</td><td class="c-num">0</td><td>87 + 98. The union adds nothing and loses nothing.</td></tr>
+              <tr><td>Unified → in scope</td><td class="c-num">185</td><td class="c-num">184</td><td class="c-num">−1</td><td><span class="id">CB0098</span> — source id <span class="id">B9999</span> unmapped.</td></tr>
+              <tr><td>In scope → fact</td><td class="c-num">184</td><td class="c-num">264</td><td class="c-num">+80</td><td>Not a filter — a densification. 184 events collapse into 66 × 4 person-quarters, most of which are inactive.</td></tr>
+              <tr><td>Fact → definition view</td><td class="c-num">264</td><td class="c-num">528</td><td class="c-num">×2</td><td>Two churn definitions per row.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Identity resolution, quantified</h3>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Measure</th><th>Value</th><th>What it means</th></tr></thead>
+            <tbody>
+              <tr><td>Distinct coupon source ids with activity</td><td class="c-num">53</td><td>Coupon-side accounts seen in 2025.</td></tr>
+              <tr><td>Distinct cashback source ids with activity</td><td class="c-num">59</td><td>58 mapped, 1 orphaned.</td></tr>
+              <tr><td>Total source identities</td><td class="c-num">111</td><td>What a naive count would report as the 2025 active base.</td></tr>
+              <tr><td>Actual people</td><td class="c-num">66</td><td>After identity resolution.</td></tr>
+              <tr><td>Overstatement avoided</td><td class="c-num">68%</td><td>The cost of skipping the identity map.</td></tr>
+              <tr><td>People with activity on both channels in 2025</td><td class="c-num">44</td><td>67% of the base — the double-count is the norm here, not an edge case. Counts only <em>eligible</em> activity; 45 people have a coupon event plus a cashback row of any status, but one of those rows was cancelled and is not activity.</td></tr>
+              <tr><td>People active on both channels within a single quarter</td><td class="c-num">4</td><td>The same four — U057, U058, U059, U060 — in all four quarters.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           08 PRODUCTION
+           ================================================================= -->
+      <section id="production">
+        <h2><span class="n">08</span> At production scale</h2>
+        <p class="lede">
+          What this model is already shaped for, and the three places it would change.
+        </p>
+
+        <h3>Already in place</h3>
+        <p>
+          Staging tables are partitioned on activity month and clustered on their join keys; the fact table
+          is clustered on <span class="id">unified_user_id</span>. At 264 rows this buys nothing — it is
+          declared for shape, so the model does not need restructuring the first time it meets real volume.
+          Every build statement is <code>CREATE OR REPLACE</code> and therefore idempotent: the pipeline can
+          be re-run at any point without a cleanup step.
+        </p>
+
+        <h3>Full refresh → incremental</h3>
+        <p>
+          Today every layer rebuilds completely. At scale, staging and the event stream become incremental
+          on activity month, with a rolling reprocess window wide enough to absorb late-arriving affiliate
+          data — the <span class="id">decisions_landing_in_later_quarter</span> and
+          <span class="id">max_days_to_decision</span> columns already measure how wide that window needs to
+          be. The fact table stays a full rebuild of the current and prior quarter: it is small by
+          construction, being bounded by people × quarters rather than by events.
+        </p>
+
+        <h3>Identity becomes slowly-changing</h3>
+        <p>
+          The identity map is treated as current-state here. In production, merges happen — two accounts
+          discovered to be the same person, retroactively. That makes it a type-2 dimension with validity
+          ranges, and raises a real question the model would then have to answer explicitly: does a merge
+          restate history, or apply only from the merge date forward? The current design deliberately does
+          not pretend to answer it.
+        </p>
+
+        <h3>Assertions become gates</h3>
+        <p>
+          <span class="id">dq_check_results</span> is a table today; in Dataform the same logic becomes
+          assertions attached to each model, and publication is blocked on
+          <code>COUNTIF(check_status = 'FAIL' AND severity = 'error') = 0</code>. The reconciliation
+          identities matter most here — they are the checks that catch a bad refactor rather than bad data.
+        </p>
+      </section>
+
+    </main>
+  </div>
+</div>
